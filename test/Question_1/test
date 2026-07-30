@@ -1,0 +1,126 @@
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType
+from pyspark.sql.functions import (
+    collect_set,
+    size,
+    col,
+    array_contains,
+    countDistinct
+)
+
+# -------------------------------
+# Test Data
+# -------------------------------
+
+purchase_schema = StructType([
+    StructField("customer", IntegerType(), True),
+    StructField("product_model", StringType(), True)
+])
+
+purchase_data = [
+    (1, "iphone13"),
+    (1, "dell i5 core"),
+    (2, "iphone13"),
+    (2, "dell i5 core"),
+    (3, "iphone13"),
+    (3, "dell i5 core"),
+    (1, "dell i3 core"),
+    (1, "hp i5 core"),
+    (1, "iphone14"),
+    (3, "iphone14"),
+    (4, "iphone13")
+]
+
+purchase_df = spark.createDataFrame(purchase_data, purchase_schema)
+
+
+product_schema = StructType([
+    StructField("product_model", StringType(), True)
+])
+
+product_data = [
+    ("iphone13",),
+    ("dell i5 core",),
+    ("dell i3 core",),
+    ("hp i5 core",),
+    ("iphone14",)
+]
+
+product_df = spark.createDataFrame(product_data, product_schema)
+
+# -------------------------------
+# Test 1
+# -------------------------------
+
+assert purchase_df.count() == 11
+print("✓ Purchase DataFrame Test Passed")
+
+# -------------------------------
+# Test 2
+# -------------------------------
+
+assert product_df.count() == 5
+print("✓ Product DataFrame Test Passed")
+
+# -------------------------------
+# Test 3
+# Customers who bought only iphone13
+# -------------------------------
+
+result = (
+    purchase_df
+    .groupBy("customer")
+    .agg(collect_set("product_model").alias("products"))
+    .filter(
+        (size(col("products")) == 1) &
+        (col("products")[0] == "iphone13")
+    )
+)
+
+customers = sorted([r.customer for r in result.collect()])
+
+assert customers == [4]
+
+print("✓ Question 2 Passed")
+
+# -------------------------------
+# Test 4
+# Customers upgraded
+# -------------------------------
+
+result = (
+    purchase_df
+    .groupBy("customer")
+    .agg(collect_set("product_model").alias("products"))
+    .filter(
+        array_contains(col("products"), "iphone13") &
+        array_contains(col("products"), "iphone14")
+    )
+)
+
+customers = sorted([r.customer for r in result.collect()])
+
+assert customers == [1, 3]
+
+print("✓ Question 3 Passed")
+
+# -------------------------------
+# Test 5
+# Customers bought all products
+# -------------------------------
+
+total_products = product_df.count()
+
+result = (
+    purchase_df
+    .groupBy("customer")
+    .agg(countDistinct("product_model").alias("product_count"))
+    .filter(col("product_count") == total_products)
+)
+
+customers = sorted([r.customer for r in result.collect()])
+
+assert customers == [1]
+
+print("✓ Question 4 Passed")
+
+print("\n🎉 All Tests Passed Successfully!")
